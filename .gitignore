@@ -1,0 +1,20 @@
+venv/
+__pycache__/
+*.pyc
+uploads/
+cropped_uploads/
+embeddings/
+cropped_reference_images/
+testing/
+clip_local/
+clip.py
+hardcoded_embeddings.py
+
+# Ignore YOLO model files
+yolov8n.pt
+yolov8*.pt
+
+# Python env and editor
+.env
+.vscode/
+.DS_Store
