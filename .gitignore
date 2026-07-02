@@ -1,4 +1,5 @@
 venv/
+.venv/
 __pycache__/
 *.pyc
 uploads/
@@ -18,3 +19,4 @@ yolov8*.pt
 .env
 .vscode/
 .DS_Store
+.claude/
