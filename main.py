@@ -112,6 +112,8 @@ async def detect_bottle(
         "status": "rejected",
         "score": 0.0,
         "yolo_confidence": 0.0,
+        "cap_detected": False,
+        "cap_confidence": 0.0,
         "reason": None,
     }
     try:
@@ -125,17 +127,32 @@ async def detect_bottle(
         results = yolo_model(image)
         best_box = None
         best_conf = 0
+        best_cap_conf = 0
         for box in results[0].boxes:
             cls_id = int(box.cls[0])
             conf = float(box.conf[0])
-            if yolo_model.names[cls_id] in ["bottle", "vase"] and conf > best_conf:
+            class_name = yolo_model.names[cls_id]
+            if class_name in ["bottle", "vase"] and conf > best_conf:
                 best_conf = conf
                 best_box = box
+            elif class_name == "bottle_cap" and conf > best_cap_conf:
+                best_cap_conf = conf
+
+        cap_detected = best_cap_conf > 0
+        event["cap_detected"] = cap_detected
+        event["cap_confidence"] = round(best_cap_conf, 2)
+        logger.info(f"barcode={barcode} cap_detected={cap_detected} cap_confidence={round(best_cap_conf, 2)}")
 
         if best_box is None:
             event["reason"] = "No plastic bottle detected"
             emit_event(event)
-            return {"status": "rejected", "reason": "No plastic bottle detected", "confidence": 0}
+            return {
+                "status": "rejected",
+                "reason": "No plastic bottle detected",
+                "confidence": 0,
+                "cap_detected": cap_detected,
+                "cap_confidence": round(best_cap_conf, 2),
+            }
 
         x1, y1, x2, y2 = map(int, best_box.xyxy[0])
         cropped = image[y1:y2, x1:x2]
@@ -148,7 +165,12 @@ async def detect_bottle(
         if not ref_embs:
             event["reason"] = f"No embeddings for barcode {barcode}"
             emit_event(event)
-            return {"status": "rejected", "reason": f"No embeddings for barcode {barcode}"}
+            return {
+                "status": "rejected",
+                "reason": f"No embeddings for barcode {barcode}",
+                "cap_detected": cap_detected,
+                "cap_confidence": round(best_cap_conf, 2),
+            }
 
         score = top2_score(query_emb, ref_embs)
         decision = "accepted" if score >= SIMILARITY_THRESHOLD else "rejected"
@@ -164,6 +186,8 @@ async def detect_bottle(
             "threshold": SIMILARITY_THRESHOLD,
             "barcode": barcode,
             "yolo_confidence": round(best_conf, 2),
+            "cap_detected": cap_detected,
+            "cap_confidence": round(best_cap_conf, 2),
         }
 
     except HTTPException:

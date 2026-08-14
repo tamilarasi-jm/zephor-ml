@@ -1,3 +1,10 @@
+# This box has no GPU (no nvidia-smi, torch.cuda.is_available() == False).
+# torch/torchvision are pulled from the PyTorch CPU wheel index below instead
+# of PyPI's default index, which otherwise serves the CUDA build and drags in
+# ~3.4GB of unused nvidia-*/cuda-*/triton packages that never get loaded at
+# runtime (YOLO + CLIP inference both run on CPU here).
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.14.1
@@ -5,9 +12,6 @@ certifi==2026.6.17
 charset-normalizer==3.4.7
 click==8.4.2
 contourpy==1.3.3
-cuda-bindings==13.3.1
-cuda-pathfinder==1.5.6
-cuda-toolkit==13.0.2
 cycler==0.12.1
 fastapi==0.138.2
 filelock==3.29.4
@@ -28,22 +32,6 @@ mdurl==0.1.2
 mpmath==1.3.0
 networkx==3.6.1
 numpy==2.5.0
-nvidia-cublas==13.1.1.3
-nvidia-cuda-cupti==13.0.85
-nvidia-cuda-nvrtc==13.0.88
-nvidia-cuda-runtime==13.0.96
-nvidia-cudnn-cu13==9.20.0.48
-nvidia-cufft==12.0.0.61
-nvidia-cufile==1.15.1.6
-nvidia-curand==10.4.0.35
-nvidia-cusolver==12.0.4.66
-nvidia-cusparse==12.6.3.3
-nvidia-cusparselt-cu13==0.8.1
-nvidia-ml-py==13.610.43
-nvidia-nccl-cu13==2.29.7
-nvidia-nvjitlink==13.0.88
-nvidia-nvshmem-cu13==3.4.5
-nvidia-nvtx==13.0.85
 opencv-python==4.13.0.92
 packaging==26.2
 pillow==12.2.0
@@ -68,11 +56,10 @@ six==1.17.0
 starlette==1.3.1
 sympy==1.14.0
 tokenizers==0.22.2
-torch==2.12.1
-torchvision==0.27.1
+torch==2.12.1+cpu
+torchvision==0.27.1+cpu
 tqdm==4.68.3
 transformers==5.12.1
-triton==3.7.1
 typer==0.25.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
