@@ -86,6 +86,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+def check_bottle_cap(pil_img: Image.Image) -> dict:
+    """
+    Zero-shot classifies whether the bottle in the image has a cap or no cap.
+    """
+    labels = [
+        "a bottle with a cap", 
+        "a bottle without a cap",
+        "an open bottle without lid",
+        "a sealed bottle with lid"
+    ]
+    
+    inputs = clip_processor(
+        text=labels, 
+        images=pil_img, 
+        return_tensors="pt", 
+        padding=True
+    )
+    
+    with torch.no_grad():
+        outputs = clip_model(**inputs)
+        # Compute cosine similarity between image and text features
+        logits_per_image = outputs.logits_per_image  # shape: (1, num_labels)
+        probs = logits_per_image.softmax(dim=1).cpu().numpy()[0]
+        
+    cap_prob = float(probs[0] + probs[3])       # "with a cap" + "sealed with lid"
+    no_cap_prob = float(probs[1] + probs[2])    # "without a cap" + "open without lid"
+    
+    has_cap = cap_prob > no_cap_prob
+    return {
+        "has_cap": has_cap,
+        "cap_confidence": round(cap_prob / (cap_prob + no_cap_prob), 2)
+    }
+    git checkout -b tamil
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -136,7 +169,7 @@ async def detect_bottle(
             event["reason"] = "No plastic bottle detected"
             emit_event(event)
             return {"status": "rejected", "reason": "No plastic bottle detected", "confidence": 0}
-
+        
         x1, y1, x2, y2 = map(int, best_box.xyxy[0])
         cropped = image[y1:y2, x1:x2]
         cropped_rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
@@ -144,6 +177,34 @@ async def detect_bottle(
 
         query_emb = _get_clip_embedding(pil_img)
 
+        # --- Check for Bottle Cap ---
+        cap_result = check_bottle_cap(pil_img)
+        has_cap = cap_result["has_cap"]
+        cap_confidence = cap_result["cap_confidence"]
+
+        # If bottle cap presence is mandatory for acceptance:
+        # (Uncomment below if no-cap bottles must be rejected)
+        # if not has_cap:
+        #     event["reason"] = "Bottle cap missing"
+        #     event["status"] = "rejected"
+        #     emit_event(event)
+        #     return {
+        #         "status": "rejected",
+        #         "reason": "Bottle cap missing",
+        #         "has_cap": False,
+        #         "cap_confidence": cap_confidence
+        #     }
+
+        query_emb = _get_clip_embedding(pil_img)
+
+        ref_embs = embeddings_cache.get(barcode)
+        if not ref_embs:
+            event["reason"] = f"No embeddings for barcode {barcode}"
+            emit_event(event)
+            return {"status": "rejected", "reason": f"No embeddings for barcode {barcode}"}
+
+        score = top2_score(query_emb, ref_embs)
+        decision = "accepted" if score >= SIMILARITY_THRESHOLD else "rejected"
         ref_embs = embeddings_cache.get(barcode)
         if not ref_embs:
             event["reason"] = f"No embeddings for barcode {barcode}"
@@ -156,6 +217,7 @@ async def detect_bottle(
         event["status"] = decision
         event["score"] = score
         event["yolo_confidence"] = round(best_conf, 2)
+        event["has_cap"] = has_cap
         emit_event(event)
 
         return {
@@ -164,6 +226,8 @@ async def detect_bottle(
             "threshold": SIMILARITY_THRESHOLD,
             "barcode": barcode,
             "yolo_confidence": round(best_conf, 2),
+            "has_cap": has_cap,
+            "cap_confidence": cap_confidence,
         }
 
     except HTTPException:

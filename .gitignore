@@ -20,3 +20,5 @@ yolov8*.pt
 .vscode/
 .DS_Store
 .claude/
+weights/
+weights/
