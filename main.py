@@ -118,7 +118,7 @@ def check_bottle_cap(pil_img: Image.Image) -> dict:
         "has_cap": has_cap,
         "cap_confidence": round(cap_prob / (cap_prob + no_cap_prob), 2)
     }
-    git checkout -b tamil
+   
 @app.get("/health")
 async def health():
     return {"status": "ok"}
